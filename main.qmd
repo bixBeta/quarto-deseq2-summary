@@ -546,18 +546,11 @@ maplot <- reactive({
 })
 
 
-# ma <- reactive({
-#   
-#     req(maplot())
-#     req(input$pID != "All_Comparisons")
-#     
-# 
-# 
-# 
-# )
-# })
+ma <- reactive({
 
-output$ma.plot <- renderPlot({
+    req(maplot())
+    req(input$pID != "All_Comparisons")
+
       ggmaplot(maplot()[[2]] , main = maplot()[[1]],
          fdr = 0.05, fc = 2, size = 4,
          palette = c("#B31B21", "#1465AC", "darkgray"),
@@ -573,6 +566,11 @@ output$ma.plot <- renderPlot({
     axis.title = element_text(size = 18),  # Customize axis title font size
     axis.text = element_text(size = 18)  # Customize axis label font size
 )
+
+})
+
+output$ma.plot <- renderPlot({
+    ma()
 })
 
 output$downloadCSV <- downloadHandler(
@@ -592,21 +590,26 @@ observeEvent(!is.null(norm.counts.filtered()), {
 
 
 
-# output$downloadMA <- downloadHandler(
-#     filename = function() {
-#       paste0("MA-plot_", input$pID, "_", Sys.Date(), ".png", sep="")
-#     },
-#     content = function(file) {
-#       png(filename = file, width = 1080, height = 1080)
-#       ma()
-#       dev.off()
-#     }
-#     
-# )
-# 
-# observeEvent(!is.null(ma()), {
-#     output$ma.download <- renderUI(downloadButton("downloadMA", "Download MA-Plot"))
-# })
+output$maDownload <- downloadHandler(
+    filename = function() {
+      paste0("MA-Plot_", input$pID, "_", Sys.Date(), ".png", sep="")
+    },
+    content = function(file) {
+      ggsave(file, ma(), bg = "white", width = 10, height = 10, units = "in", dpi = "print")
+    }
+    
+)
+
+observeEvent(!is.null(norm.counts.filtered()), {
+  #output$download.norm <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts"))
+  output$ma.button <- renderUI(downloadButton("maDownload", "Download MA-Plot", style="width:100%;"))
+})
+
+
+
+
+
+
 
 ```
 
@@ -644,5 +647,8 @@ withSpinner(jqui_resizable(jqui_draggable(plotOutput(outputId = "ma.plot", width
 
 ```
 
-
+#### {.toolbar}
+```{r}
+uiOutput(outputId = "ma.button")
+```
 
