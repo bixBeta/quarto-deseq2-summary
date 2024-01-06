@@ -1,0 +1,91 @@
+/*-- scss:defaults --*/
+
+$navbar-bg							    : #4a4e69;
+$navbar-fg							    :	#BDBDBD;
+$sidebar-bg							    :	#544C4A;
+$sidebar-fg							    :	#544C4A;
+$primary							      :	#4a4e69;
+$body-bg							      :	#f3f3f3;
+$sidebar-bg							    :	#808080;
+$btn-font-size						  :	14px;
+$btn-color							    :	#ffc107;
+$btn-padding-y						  :	.5rem;
+$input-btn-font-size				:	12px;
+$input-btn-focus-color			:	#4a4e69;
+$input-btn-padding-y				:	.5rem;
+$nav-link-color						  :	#bdbdbd;
+$btn-link-hover-color				:	#4a4e69;
+$nav-link-hover-color				:	#FF5F00;
+$nav-link-disabled-color		:	#000000;
+$nav-tabs-link-active-color	:	#4a4e69;
+$card-bg                    : #FFFFFF; 
+
+
+
+/* Customize the navbar height */
+.navbar {
+    height: 60px; /* Adjust the height as needed */
+    font-size: 15px;
+    font-family: "Raleway", sans-serif;
+    font-weight: 500;
+    
+}
+
+#file-label{
+  padding: 5px;
+}
+
+
+.nav-link:active{
+  background-color: #4a4e69;
+  
+}
+
+.btn.btn-default.btn-file{
+  color: #000000;
+  background-color: #bdbdbd;
+}
+
+
+.btn.btn-default.btn-file:hover{
+  color: #ffffff;
+  background-color: #4a4e69;
+}
+
+.card.html-fill-item.html-fill-container.bslib-card{
+  color: #000000;
+}
+
+#run{
+  background-color: #bdbdbd;
+  color: #000000;
+}
+
+#run:hover{
+  background-color: #4a4e69;
+  color: #ffffff;
+}
+
+.nav-link.active{
+  background-color: #4a4e69;
+  color: #000000;
+}
+
+/* Override value_box font size */
+.value-box.value {
+  font-size: 4px; /* Adjust the font size as needed */
+}
+
+
+#sTest >.tooltip{
+  font-size: 26px;
+}
+
+.selectize-dropdown-content{
+    max-height: 100% !important;
+    height: 100% !important;
+}
+
+.form-group.shiny-input-container{
+    height: 100px !important;
+}
