@@ -1,0 +1,648 @@
+---
+title: "deseq2-summary"
+format: 
+  dashboard:
+    orientation: rows
+    theme:
+        - custom.css
+    fontsize: .85em
+    linestretch: 1
+    expandable: false
+
+server: shiny
+
+---
+
+
+### {.sidebar width="300"} 
+```{r}
+#| context: setup
+
+library(quarto)
+library(shiny)
+library(dplyr)
+library(d3heatmap)
+library(tibble)
+library(tidyverse)
+library(shinycssloaders)
+library(heatmaply)
+library(shinyjs)
+library(shiny.fluent)
+library(colourpicker)
+library(shiny.blueprint)
+library(shinyjqui)
+library(tidyr)
+library(sparkline)
+library(ggplot2)
+library(scales)
+library(ggpubr)
+library(shinyWidgets)
+library(bslib)
+library(flexdashboard)
+library(bsicons)
+library(DT)
+
+fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
+actionButton(inputId="run","Submit")
+hr()
+uiOutput(outputId = "contrastID")
+hr()
+br()
+uiOutput(outputId = "filtCounts")
+
+br()
+br()
+
+uiOutput(outputId = "mat.switch")
+
+
+textOutput(outputId = "n")
+textOutput(outputId = "d")
+# textOutput(outputId = "fn")
+# textOutput(outputId = "fd")
+
+```
+
+
+# Results Summary 
+<!-- #------------------------------------------------------->
+
+## Row {height="15%"}
+
+```{r}
+#| padding: 0
+
+# uiOutput(outputId = "contrastID")
+# uiOutput(outputId = "filtCounts")
+# uiOutput(outputId = "mat.switch")
+# 
+
+uiOutput(outputId = "valbox1")
+```
+
+```{r}
+#| padding: 0
+uiOutput(outputId = "valbox2")
+```
+
+```{r}
+#| padding: 0
+uiOutput(outputId = "valbox3")
+
+```
+
+
+
+## Row {.tabset}
+
+
+### DESeq2 Results 
+
+
+```{r}
+#| expandable: TRUE
+DT::dataTableOutput(outputId = "uploaded")
+
+```
+
+
+```{r}
+#| context: server
+
+db <- eventReactive(input$run, {
+  if (!is.null(input$file$datapath)) {
+    read.delim(input$file$datapath, header = T, sep = "\t") 
+  } else {
+    stop()
+  }
+})
+
+
+observeEvent(input$run , {
+  
+  output$contrastID <- renderUI({
+
+    tagList(
+        tags$style(type='text/css', ".selectize-dropdown-content {height: 1000px; }"),
+        h5("Select DESeq2 Comparison"),
+        selectInput(inputId = "pID", label = "", width = 600,
+                    choices = c("All_Comparisons", sapply((strsplit(colnames(db())[grep("*.log2FoldChange", x = colnames(db()))], split = "\\.")), 
+                                     FUN = function(x){purrr::pluck(x, 1)})),  
+                    selected = "All_Comparisons")
+      )
+    })
+  
+  }
+  
+  
+)
+
+
+# con.names <- reactive({
+#   
+#   req(input$pID)
+#   
+#   if (input$pID != "All_Comparisons") {
+#     
+#     if (input$switch2 == FALSE) {
+#     a = input$pID
+#   
+#     a1 = str_split(a, pattern = "_vs_")[[1]][1]
+#     a2 = str_split(a, pattern = "_vs_")[[1]][2]
+#     # 
+#     
+#     list(a1,a2)
+#     
+#     } else if (input$switch2 == TRUE) {
+#       
+#     a = input$pID
+#   
+#     a1 = str_split(a, pattern = "_vs_")[[1]][1]
+#     a2 = str_split(a, pattern = "_vs_")[[1]][2]
+#     
+#     list(a2,a1)
+#       
+#     }
+#     
+# 
+#     
+#   } 
+# 
+# })
+
+con.num <- reactive({
+
+  req(input$pID)
+
+  if (input$pID != "All_Comparisons") {
+
+    a = input$pID
+
+    a1 = str_split(a, pattern = "_vs_")[[1]][1]
+    a2 = str_split(a, pattern = "_vs_")[[1]][2]
+    #
+
+    return(a1)
+    
+    }
+
+})
+
+
+
+con.denom <- reactive({
+
+  req(input$pID)
+
+  if (input$pID != "All_Comparisons") {
+
+    a = input$pID
+
+    a1 = str_split(a, pattern = "_vs_")[[1]][1]
+    a2 = str_split(a, pattern = "_vs_")[[1]][2]
+    #
+
+    return(a2)
+    
+    }
+
+})
+
+
+
+
+
+# Data Subset Reactive Objects:
+
+# 1. Normalized Counts:
+
+norm.counts = reactive({
+  req(db())
+  db() %>% select(gene_id, gene, baseMean, matches("norm")) %>% tibble::column_to_rownames("gene_id") })
+
+# 2. Filtered Norm Counts:
+
+quants <- reactive({
+  quantile(db()$baseMean)
+})
+
+norm.counts.filtered = reactive({
+  
+  req(input$min.counts)
+  #req(input$pID)
+  x = norm.counts()
+  x %>% filter(baseMean >= quants()[unname(paste0(input$min.counts, "%"))])
+  # %>% 
+  #   select(gene_id, gene, matches("norm")) %>% 
+  #   tibble::column_to_rownames("gene_id")
+  
+  #x %>% filter(rowSums(x) >= quants()[paste0(input$min.counts, "%")])
+  
+  
+  
+})
+
+# 3. Add SparkLines:
+
+normCounts.tab <- reactive({
+  
+  req(norm.counts.filtered())
+  Trend = apply(norm.counts.filtered() %>% select(-gene, -baseMean), 1, function(x){
+  
+  spk_chr(
+    unname(x), type ="line",
+    chartRangeMin=0, chartRangeMax=max(x), width = 60, height = 40, elementId = "sTest",highlightColor = "red",
+    tooltipPrefix="norm-counts: "
+    )
+  
+  })
+  
+  tr = cbind(norm.counts.filtered(), Trend)
+  tr
+  
+})
+
+# 4. db2 -- comparison selector:
+
+
+
+
+observeEvent(input$pID,
+
+             if (input$pID =="All_Comparisons") {
+               output$mat.switch <- renderUI({tagList(
+                      hr(),
+                      #materialSwitch(inputId = "switch2",label = "", value = FALSE, status = "warning")
+                      )})
+             } else if (input$pID != "All_Comparisons") {
+                output$mat.switch <- renderUI({tagList(
+                      p("Please use this toggle button to switch the numerator and denominator for the selected comparison. "),
+                      materialSwitch(inputId = "switch2",label = "Swap Numerator/Denominator", value = FALSE, status = "warning"),
+                      p("For the selected comparison:"), 
+                      # p(paste0("Numerator Group = ", strsplit(input$pID, split = "_")[[1]][1])),
+                      # p(paste0("Denominator/Baseline Group = ", strsplit(input$pID, split = "_")[[1]][3])),   
+                      # 
+                      # p(paste0("Numerator Group = ")),
+                      # p(paste0("Denominator/Baseline Group = "))
+                    
+
+                      
+                      
+                      )
+                  
+                      })
+             }
+
+)
+
+# db2 <- reactive({
+#   req(input$file$datapath)
+#   req(input$pID)
+#   req(db())
+#   
+#   
+#   if (input$pID == "All_Comparisons") {
+#     db() %>% select(!matches("norm")) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+#     
+#   } else if (input$pID !="All_Comparisons"){
+#     
+#     
+#     if (input$switch2 == FALSE) {
+#           db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+# 
+#     } else if (input$switch2 == TRUE) {
+#           db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% 
+#         filter(gene_id %in% rownames(norm.counts.filtered())) %>% mutate(across(matches("log2FoldChange"), ~ . * -1))
+#     }
+#     
+#   }
+#   
+# })
+
+
+db2 <- reactive({
+  req(input$file$datapath)
+  req(input$pID)
+  req(db())
+  
+  
+  if (input$pID == "All_Comparisons") {
+    db() %>% select(!matches("norm")) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+    
+  } else if (input$pID !="All_Comparisons"){
+    
+    db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+
+  }
+  
+})
+
+
+db3 <- reactive({
+  
+  req(db2())
+  
+  if (is.null(input$switch2)) {
+    
+    db2()
+  
+    } else if (input$switch2 == TRUE){
+    
+    db2() %>% filter(gene_id %in% rownames(norm.counts.filtered())) %>% mutate(across(matches("log2FoldChange"), ~ . * -1))
+      
+    }  else {
+    
+      db2()
+  }
+  
+  
+})
+
+
+
+
+
+
+
+# output$txt <- ifelse(test = input$switch2 == FALSE, yes = renderText(input$switch2), no = renderText("NOOOOOO"))
+
+observeEvent(input$switch2, {
+  
+  if (input$switch2 == TRUE && input$pID != "All_Comparisons") {
+    
+    output$n <- renderText(paste0("Numerator Group switched to  :  ",con.denom()))
+    output$d <- renderText(paste0("Denominator/Baseline Group switched to  :  ",con.num()))
+
+    
+  } else if (input$switch2 == FALSE && input$pID != "All_Comparisons"){
+   
+    output$n <- renderText(paste0("Numerator Group -->  ",con.num()))
+    output$d <- renderText(paste0("Denominator/Baseline Group -->  ",con.denom()))
+
+  }
+  
+})
+
+
+
+
+
+output$nCountsDT <- DT::renderDT(DT::datatable(normCounts.tab() %>% select(Trend, everything()), list(paging=T,
+                                                                             pageLength = 100, 
+                                                                             scrollX=T, 
+                                                                             scrollY=900,
+                                                                             scrollCollapse = TRUE,
+                                                                             autoWidth = F, 
+                                                                             fnDrawCallback = htmlwidgets::JS(
+                                                                              '
+                                                                              function(){
+                                                                                HTMLWidgets.staticRender();
+                                                                              }
+                                                                              ')), 
+                                                      filter = "none", rownames = T, 
+                                                      caption = "DESeq2 Normalized Counts", 
+                                                      escape = F) %>% spk_add_deps() ) 
+
+
+
+cap <- reactive({
+    req(input$pID)
+    req(db2())
+    if (input$pID == "All_Comparisons" & !is.null(input$pID)) {
+      
+      cap = paste0(length(sapply((strsplit(colnames(db())[grep("*.log2FoldChange", x = colnames(db()))], split = "\\.")), 
+                                     FUN = function(x){purrr::pluck(x, 1)})), ";DESeq2 contrasts available in this experiment")
+    } else {
+    
+      cap = paste0(length(which(db2() %>% select(matches(".padj")) < 0.05)), ";Differentially Expressed Features Found at padj < 0.05 for ", input$pID)
+  }
+  
+  cap
+  
+})
+
+
+
+
+output$valbox1 <- renderUI({
+  validate(need(input$file, message = "  
+    Please Upload DESeq2 results distributed by TREx and Click Submit!"))
+  validate(need(db(), label = "Checks for the presence of db reactable"))
+  value_box(title = "Total Annotated Features", value = textOutput(outputId = "v1"), 
+            showcase = bs_icon("receipt"), 
+            theme = value_box_theme(bg = "#4a4e69"), 
+            class = "text-light", showcase_layout = "top right")
+})
+
+output$valbox2 <- renderUI({
+  validate(need(input$file, message = ""))
+  validate(need(db(), label = "Checks for the presence of db reactable"))
+  total.filtered <- nrow(norm.counts.filtered())
+
+  value_box(title = paste0("Features remaining with ", input$min.counts, "% quantile filtering" ),
+            value =total.filtered, 
+            showcase = bs_icon("funnel"), 
+            theme = value_box_theme(bg = "#9a8c98"), 
+            class = "text-light", showcase_layout = "top right")
+})
+
+
+output$valbox3 <- renderUI({
+  validate(need(input$file, message = ""))
+  validate(need(db(), label = "Checks for the presence of db reactable"))
+  value_box(title =  strsplit(cap(), split = ";")[[1]][2], 
+            value = strsplit(cap(), split = ";")[[1]][1], icon = "fa-dna", color = "#c9ada7", caption = strsplit(cap(), split = ";")[[1]][2], 
+            showcase = bs_icon("arrow-down-up"), 
+            theme = value_box_theme(bg = "#c9ada7"), 
+            class = "text-light", showcase_layout = "top right")
+})
+
+output$v1 <- renderText(nrow(db()))
+# output$v2 <- renderText(nrow(db()))
+# output$v3 <- renderText(nrow(db()))
+
+
+output$uploaded <- DT::renderDataTable(DT::datatable(db3() %>% mutate_if(is.numeric, round, 3),
+                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900,
+                                                          autoWidth = F), filter = "none",
+                                                     rownames = T, caption = "DESeq2 Results"))
+
+
+output$norm.counts.raw <- DT::renderDataTable(DT::datatable(norm.counts() %>% mutate_if(is.numeric, round, 3), 
+                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
+                                                          autoWidth = F), filter = "none", 
+                                                     rownames = T, caption = "DESeq2 Normalized Counts")) 
+
+output$norm.counts.filtered <- DT::renderDataTable(DT::datatable(norm.counts.filtered() %>% mutate_if(is.numeric, round, 3), 
+                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
+                                                          autoWidth = F), filter = "none", 
+                                                     rownames = T, caption = "DESeq2 Normalized Filtered Counts")) 
+
+observeEvent(input$run, {
+
+  if (!is.null(input$file$datapath)) {
+      output$filtCounts <- renderUI({
+    
+    tagList(
+      tags$style(HTML(".js-irs-0 .irs-single, .js-irs-0 .irs-bar-edge, .js-irs-0 .irs-bar {background: #4a4e69}")),
+       h5("Filter Counts"),
+       p("Use the slider to filter rows i.e. genes/features based on quantiles of baseMean."),
+       sliderInput(inputId = "min.counts", label = "Select min quantile", min = 0, max = 75,
+                   value =  25, width = "75%", step = 25),
+       hr()
+      )
+    })
+  } else{
+    return(NULL)
+  }
+  }
+)
+
+
+output$spinnerSpark <- renderUI(withSpinner(DT::dataTableOutput(outputId = "nCountsDT"), type = 1))
+
+
+norm.stack <- reactive({
+  stack(norm.counts() %>% select(-baseMean,-gene))
+})
+
+output$dist.plot <- 
+    renderPlotly(
+      ggplotly(ggdensity(norm.stack(), x = "values",
+          rug = F,
+          color = "ind", fill = "ind", alpha = 0.1, title = "Density Distribution of Normalized Counts") + 
+            scale_x_log10() + theme_gray()  + geom_vline(xintercept= input$min.counts, linetype = "dashed") +
+            theme(legend.position = "right"), tooltip = c("colour"))
+          )
+
+
+
+maplot <- reactive({
+  validate(need(input$pID !="All_Comparisons", message = "Please Select a DESeq2 Comparison", label = "---"))
+  req(input$pID)
+  if (input$pID != "All_Comparisons" && input$switch2 == FALSE) {
+    main = input$pID
+    maplot.data = db() %>% select(gene_id, baseMean, matches(input$pID))
+    colnames(maplot.data) <-  gsub(pattern = paste0(input$pID,"."), replacement = "", x = colnames((maplot.data)))
+    return(list(main = main, maplot.data = maplot.data))
+    
+    #return(maplot.data)
+  } else if (input$pID != "All_Comparisons" && input$switch2 == TRUE){
+    
+    main = input$pID
+    mainA = strsplit(input$pID, split = "_vs_")[[1]][1]
+    mainB = strsplit(input$pID, split = "_vs_")[[1]][2]
+    main2 = paste0(mainB, "_vs_", mainA)
+    
+    maplot.data = db() %>% select(gene_id, baseMean, matches(input$pID))
+    colnames(maplot.data) <-  gsub(pattern = paste0(input$pID,"."), replacement = "", x = colnames((maplot.data)))
+    maplot.data = maplot.data %>% mutate(across(matches("log2FoldChange"), ~ . * -1))
+    return(list(main = main2, maplot.data = maplot.data))
+  }
+  
+  
+  
+  
+})
+
+
+# ma <- reactive({
+#   
+#     req(maplot())
+#     req(input$pID != "All_Comparisons")
+#     
+# 
+# 
+# 
+# )
+# })
+
+output$ma.plot <- renderPlot({
+      ggmaplot(maplot()[[2]] , main = maplot()[[1]],
+         fdr = 0.05, fc = 2, size = 4,
+         palette = c("#B31B21", "#1465AC", "darkgray"),
+         genenames = as.vector(maplot()[[2]]$gene_id),
+         legend = "top", top = 20,
+         font.label = c("bold", 14),
+         font.legend = "bold",
+         font.main = "bold",
+         ggtheme = ggplot2::theme_minimal()) +
+    theme(
+    text = element_text(size = 16),  # Adjust the font size here
+    plot.title = element_text(size = 20, face = "bold"),  # Customize title font size
+    axis.title = element_text(size = 18),  # Customize axis title font size
+    axis.text = element_text(size = 18)  # Customize axis label font size
+)
+})
+
+output$downloadCSV <- downloadHandler(
+    filename = function() {
+      paste0("Quantile_", input$min.counts, "_Filtered_Normalized_Counts_", Sys.Date(), ".csv", sep="")
+    },
+    content = function(file) {
+      write.csv(normCounts.tab() %>% select(-Trend), file)
+    }
+    
+)
+
+observeEvent(!is.null(norm.counts.filtered()), {
+  #output$download.norm <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts"))
+  output$csv <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts", style="width:100%;"))
+})
+
+
+
+# output$downloadMA <- downloadHandler(
+#     filename = function() {
+#       paste0("MA-plot_", input$pID, "_", Sys.Date(), ".png", sep="")
+#     },
+#     content = function(file) {
+#       png(filename = file, width = 1080, height = 1080)
+#       ma()
+#       dev.off()
+#     }
+#     
+# )
+# 
+# observeEvent(!is.null(ma()), {
+#     output$ma.download <- renderUI(downloadButton("downloadMA", "Download MA-Plot"))
+# })
+
+```
+
+
+### Normalized Counts
+
+
+```{r}
+#| expandable: true
+uiOutput(outputId = "spinnerSpark")
+
+```
+
+#### {.toolbar}
+```{r}
+uiOutput(outputId = "csv")
+```
+
+
+
+### Density Distributions 
+
+
+```{r}
+#| expandable: true
+jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)))
+
+```
+
+### MA-Plot
+
+```{r}
+#| expandable: true
+withSpinner(jqui_resizable(jqui_draggable(plotOutput(outputId = "ma.plot", width = 1080, height = 1080))))
+
+```
+
+
+
