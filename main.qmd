@@ -41,6 +41,7 @@ library(bslib)
 library(flexdashboard)
 library(bsicons)
 library(DT)
+library(rhandsontable)
 
 fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
 actionButton(inputId="run","Submit")
