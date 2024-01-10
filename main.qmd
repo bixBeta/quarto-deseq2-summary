@@ -60,7 +60,7 @@ textOutput(outputId = "n")
 textOutput(outputId = "d")
 # textOutput(outputId = "fn")
 # textOutput(outputId = "fd")
-uiOutput("myTable")
+
 ```
 
 
@@ -212,7 +212,7 @@ con.denom <- reactive({
 output$myTable <- renderUI(rHandsontableOutput(outputId = "myT"))
 
 output$myT <- renderRHandsontable({
-    rhandsontable(as.data.frame(head(iris)), readOnly = T)
+    rhandsontable(as.data.frame(head(iris)), readOnly = T, search = TRUE) %>% hot_table(highlightCol = TRUE, highlightRow = TRUE)
   })
 
 
@@ -398,7 +398,7 @@ output$nCountsDT <- DT::renderDT(DT::datatable(normCounts.tab() %>% select(Trend
                                                                              scrollX=T, 
                                                                              scrollY=900,
                                                                              scrollCollapse = TRUE,
-                                                                             autoWidth = F, 
+                                                                             autoWidth = F, dom = 'lftip',
                                                                              fnDrawCallback = htmlwidgets::JS(
                                                                               '
                                                                               function(){
@@ -674,5 +674,6 @@ uiOutput(outputId = "MA")
 #### {.toolbar}
 ```{r}
 uiOutput(outputId = "ma.button")
+uiOutput("myTable")
 ```
 
