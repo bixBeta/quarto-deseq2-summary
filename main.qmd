@@ -60,7 +60,7 @@ textOutput(outputId = "n")
 textOutput(outputId = "d")
 # textOutput(outputId = "fn")
 # textOutput(outputId = "fd")
-
+uiOutput("myTable")
 ```
 
 
@@ -208,6 +208,12 @@ con.denom <- reactive({
 
 })
 
+
+output$myTable <- renderUI(rHandsontableOutput(outputId = "myT"))
+
+output$myT <- renderRHandsontable({
+    rhandsontable(as.data.frame(head(iris)), readOnly = T)
+  })
 
 
 
@@ -408,7 +414,7 @@ output$nCountsDT <- DT::renderDT(DT::datatable(normCounts.tab() %>% select(Trend
 cap <- reactive({
     req(input$pID)
     req(db2())
-    if (input$pID == "All_Comparisons" & !is.null(input$pID)) {
+    if (input$pID == "All_Comparisons" && !is.null(input$pID)) {
       
       cap = paste0(length(sapply((strsplit(colnames(db())[grep("*.log2FoldChange", x = colnames(db()))], split = "\\.")), 
                                      FUN = function(x){purrr::pluck(x, 1)})), ";DESeq2 contrasts available in this experiment")
@@ -503,31 +509,48 @@ output$spinnerSpark <- renderUI(withSpinner(DT::dataTableOutput(outputId = "nCou
 
 
 norm.stack <- reactive({
-  stack(norm.counts() %>% select(-baseMean,-gene))
+  x <- stack(norm.counts() %>% select(-baseMean,-gene))
+  colnames(x) <- c("Counts", "Sample")
+  return(x)
 })
 
 output$dist.plot <- 
     renderPlotly(
-      ggplotly(ggdensity(norm.stack(), x = "values",
+      ggplotly(ggdensity(norm.stack(), x = "Counts",
           rug = F,
-          color = "ind", fill = "ind", alpha = 0.1, title = "Density Distribution of Normalized Counts") + 
+          color = "Sample", fill = "Sample", alpha = 0.1, title = "Density Distribution of Normalized Counts") + 
             scale_x_log10() + theme_gray()  + geom_vline(xintercept= input$min.counts, linetype = "dashed") +
             theme(legend.position = "right"), tooltip = c("colour"))
           )
+
+output$DENS <- renderUI(withSpinner(jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)))))
+
+# # ss <- reactiveVal(FALSE)
+# 
+# observeEvent(input$switch2,
+#              {
+#   if (input$switch2 == FALSE) {
+#     ss <- reactiveVal(FALSE)
+#   } else if (input$switch2 == TRUE){
+# 
+#     ss <- reactiveVal(TRUE)
+#   }
+# })
 
 
 
 maplot <- reactive({
   validate(need(input$pID !="All_Comparisons", message = "Please Select a DESeq2 Comparison", label = "---"))
   req(input$pID)
-  if (input$pID != "All_Comparisons" && input$switch2 == FALSE) {
+  
+  if (input$pID != "All_Comparisons" && !is.null(input$switch2) && input$switch2 == FALSE) {
     main = input$pID
     maplot.data = db() %>% select(gene_id, baseMean, matches(input$pID))
     colnames(maplot.data) <-  gsub(pattern = paste0(input$pID,"."), replacement = "", x = colnames((maplot.data)))
     return(list(main = main, maplot.data = maplot.data))
     
     #return(maplot.data)
-  } else if (input$pID != "All_Comparisons" && input$switch2 == TRUE){
+  } else if (input$pID != "All_Comparisons" && !is.null(input$switch2) && input$switch2 == TRUE){
     
     main = input$pID
     mainA = strsplit(input$pID, split = "_vs_")[[1]][1]
@@ -549,7 +572,7 @@ maplot <- reactive({
 ma <- reactive({
 
     req(maplot())
-    req(input$pID != "All_Comparisons")
+    req(input$pID)
 
       ggmaplot(maplot()[[2]] , main = maplot()[[1]],
          fdr = 0.05, fc = 2, size = 4,
@@ -584,7 +607,7 @@ output$downloadCSV <- downloadHandler(
 )
 
 observeEvent(!is.null(norm.counts.filtered()), {
-  #output$download.norm <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts"))
+  
   output$csv <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts", style="width:100%;"))
 })
 
@@ -600,13 +623,13 @@ output$maDownload <- downloadHandler(
     
 )
 
-observeEvent(!is.null(norm.counts.filtered()), {
-  #output$download.norm <- renderUI(downloadButton("downloadCSV", "Download Filtered Normalized Counts"))
+observeEvent(!is.null(db()), {
   output$ma.button <- renderUI(downloadButton("maDownload", "Download MA-Plot", style="width:100%;"))
 })
 
 
 
+output$MA <- renderUI(withSpinner(jqui_resizable(jqui_draggable(plotOutput(outputId = "ma.plot", width = 1080, height = 1080)))))
 
 
 
@@ -635,7 +658,8 @@ uiOutput(outputId = "csv")
 
 ```{r}
 #| expandable: true
-jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)))
+
+uiOutput(outputId = "DENS")
 
 ```
 
@@ -643,7 +667,7 @@ jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)
 
 ```{r}
 #| expandable: true
-withSpinner(jqui_resizable(jqui_draggable(plotOutput(outputId = "ma.plot", width = 1080, height = 1080))))
+uiOutput(outputId = "MA")
 
 ```
 
