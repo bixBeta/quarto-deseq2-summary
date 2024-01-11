@@ -21,7 +21,7 @@ server: shiny
 library(quarto)
 library(shiny)
 library(dplyr)
-library(d3heatmap)
+# library(d3heatmap)
 library(tibble)
 library(tidyverse)
 library(shinycssloaders)
@@ -41,7 +41,8 @@ library(bslib)
 library(flexdashboard)
 library(bsicons)
 library(DT)
-library(rhandsontable)
+library(reactable)
+library(reshape2)
 
 fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
 actionButton(inputId="run","Submit")
@@ -55,12 +56,11 @@ br()
 br()
 
 uiOutput(outputId = "mat.switch")
+uiOutput("fractionT")
 
+# textOutput(outputId = "n")
+# textOutput(outputId = "d")
 
-textOutput(outputId = "n")
-textOutput(outputId = "d")
-# textOutput(outputId = "fn")
-# textOutput(outputId = "fd")
 
 ```
 
@@ -109,7 +109,7 @@ DT::dataTableOutput(outputId = "uploaded")
 
 ```{r}
 #| context: server
-
+#| padding: 0
 db <- eventReactive(input$run, {
   if (!is.null(input$file$datapath)) {
     read.delim(input$file$datapath, header = T, sep = "\t") 
@@ -210,11 +210,7 @@ con.denom <- reactive({
 })
 
 
-output$myTable <- renderUI(rHandsontableOutput(outputId = "myT"))
 
-output$myT <- renderRHandsontable({
-    rhandsontable(as.data.frame(head(iris)), readOnly = T, search = TRUE) %>% hot_table(highlightCol = TRUE, highlightRow = TRUE)
-  })
 
 
 
@@ -254,18 +250,30 @@ norm.counts.filtered = reactive({
 normCounts.tab <- reactive({
   
   req(norm.counts.filtered())
-  Trend = apply(norm.counts.filtered() %>% select(-gene, -baseMean), 1, function(x){
+  # Trend = apply(norm.counts.filtered() %>% select(-gene, -baseMean), 1, function(x){
+  # 
+  # spk_chr(
+  #   unname(x), type ="line",
+  #   chartRangeMin=0, chartRangeMax=max(x), width = 60, height = 40, elementId = "sTest",highlightColor = "red",
+  #   tooltipPrefix="norm-counts: "
+  #   )
+  # 
+  # })
+  # 
+  # tr = cbind(norm.counts.filtered(), Trend)
+  # tr
   
-  spk_chr(
-    unname(x), type ="line",
-    chartRangeMin=0, chartRangeMax=max(x), width = 60, height = 40, elementId = "sTest",highlightColor = "red",
-    tooltipPrefix="norm-counts: "
-    )
   
-  })
+  m1 = norm.counts.filtered() %>% rownames_to_column("GENE") 
   
-  tr = cbind(norm.counts.filtered(), Trend)
-  tr
+  m2 = melt(m1)
+  #colnames(m2) <- c("GENE", "sample", "counts")
+  
+  m3 = m2 %>% group_by(GENE) %>% summarise(Trend = list(value))
+  
+  m4 = left_join(m1, m3, by = c("GENE")) %>% column_to_rownames("GENE")
+ 
+  return(m4)
   
 })
 
@@ -373,44 +381,96 @@ db3 <- reactive({
 
 # output$txt <- ifelse(test = input$switch2 == FALSE, yes = renderText(input$switch2), no = renderText("NOOOOOO"))
 
-observeEvent(input$switch2, {
-  
-  if (input$switch2 == TRUE && input$pID != "All_Comparisons") {
-    
-    output$n <- renderText(paste0("Numerator Group switched to  :  ",con.denom()))
-    output$d <- renderText(paste0("Denominator/Baseline Group switched to  :  ",con.num()))
+# observeEvent(input$switch2, {
+#   
+#   if (input$switch2 == TRUE && input$pID != "All_Comparisons") {
+#     
+#     output$n <- renderText(paste0("Numerator Group switched to  :  ",con.denom()))
+#     output$d <- renderText(paste0("Denominator/Baseline Group switched to  :  ",con.num()))
+# 
+#     
+#   } else if (input$switch2 == FALSE && input$pID != "All_Comparisons"){
+#    
+#     output$n <- renderText(paste0("Numerator Group -->  ",con.num()))
+#     output$d <- renderText(paste0("Denominator/Baseline Group -->  ",con.denom()))
+# 
+#   }
+#   
+# })
 
-    
-  } else if (input$switch2 == FALSE && input$pID != "All_Comparisons"){
-   
-    output$n <- renderText(paste0("Numerator Group -->  ",con.num()))
-    output$d <- renderText(paste0("Denominator/Baseline Group -->  ",con.denom()))
 
+observeEvent(input$switch2,{
+  if (input$switch2 == TRUE && input$pID != "All_Comparisons" && !is.null(input$switch2)) {
+    
+    frac <- reactive({
+     req(con.num())  
+     a = c("Numerator", "Denominator/Baseline")
+     b = c(con.denom(), con.num())
+     data.frame(a,b)
+    })
+    
+    output$fractionT <- renderUI(reactableOutput(outputId = "myT"))
+
+    output$myT <- renderReactable({
+    reactable(frac(), searchable = F, columns = list(a = colDef(maxWidth = 150, name = ""), 
+                                                     b = colDef(maxWidth = 150, name = "", 
+                                                              style = function(value){list(background = "#c9ada7", fontWeight = "bold")},
+                                                              cell = function(value){span(class = "myCLASS1", value)})),
+                                          columnGroups = list(colGroup(name = "log2FC", columns = c("a", "b"))),
+                                          sortable = F, striped = F, outlined = T , resizable = T, bordered = F)
+  })
+    
+  } else if(input$switch2 == FALSE && input$pID != "All_Comparisons" &&  !is.null(input$switch2)){
+    
+    frac <- reactive({
+     req(con.num())  
+     a = c("Numerator", "Denominator/Baseline")
+     b = c(con.num(), con.denom())
+     data.frame(a,b)
+    })
+    
+    output$fractionT <- renderUI(reactableOutput(outputId = "myT"))
+
+    output$myT <- renderReactable({
+    reactable(frac(), searchable = F, columns = list(a = colDef(maxWidth = 150, name = ""), 
+                                                     b = colDef(maxWidth = 150, name = "",
+                                                    style = function(value){list(background = "#C7C7C7", fontWeight = "bold")})),
+              columnGroups = list(colGroup(name = "log2FC", columns = c("a", "b"))),
+                                                     sortable = F, resizable = T, bordered = F, striped = F)
+  })
   }
-  
 })
 
 
 
 
 
-output$nCountsDT <- DT::renderDT(DT::datatable(normCounts.tab() %>% select(Trend, everything()), list(paging=T,
-                                                                             pageLength = 100, 
-                                                                             scrollX=T, 
-                                                                             scrollY=900,
-                                                                             scrollCollapse = TRUE,
-                                                                             autoWidth = F, dom = 'lftip',
-                                                                             fnDrawCallback = htmlwidgets::JS(
-                                                                              '
-                                                                              function(){
-                                                                                HTMLWidgets.staticRender();
-                                                                              }
-                                                                              ')), 
-                                                      filter = "none", rownames = T, 
-                                                      caption = "DESeq2 Normalized Counts", 
-                                                      escape = F) %>% spk_add_deps() ) 
 
 
+
+# output$nCountsDT <- DT::renderDT(DT::datatable(normCounts.tab() %>% select(Trend, everything()), list(paging=T,
+#                                                                              pageLength = 100, 
+#                                                                              scrollX=T, 
+#                                                                              scrollY=900,
+#                                                                              scrollCollapse = TRUE,
+#                                                                              autoWidth = F, dom = 'lftip',
+#                                                                              fnDrawCallback = htmlwidgets::JS(
+#                                                                               '
+#                                                                               function(){
+#                                                                                 HTMLWidgets.staticRender();
+#                                                                               }
+#                                                                               ')), 
+#                                                       filter = "none", rownames = T, 
+#                                                       caption = "DESeq2 Normalized Counts", 
+#                                                       escape = F) %>% spk_add_deps() ) 
+
+output$nCountsDT <- renderReactable(reactable(normCounts.tab() %>% select(Trend, everything()),
+          columns = list(
+            Trend = colDef(cell = function(value, index) {
+              sparkline(normCounts.tab()$Trend[[index]])})
+          ), resizable = T, striped = T, searchable = T, filterable = F, 
+          defaultPageSize = 50, paginationType = "simple", showPageInfo = T, bordered = T
+))
 
 cap <- reactive({
     req(input$pID)
@@ -506,7 +566,7 @@ observeEvent(input$run, {
 )
 
 
-output$spinnerSpark <- renderUI(withSpinner(DT::dataTableOutput(outputId = "nCountsDT"), type = 1))
+output$spinnerSpark <- renderUI(withSpinner(reactableOutput(outputId = "nCountsDT"), type = 1))
 
 
 norm.stack <- reactive({
@@ -675,6 +735,6 @@ uiOutput(outputId = "MA")
 #### {.toolbar}
 ```{r}
 uiOutput(outputId = "ma.button")
-uiOutput("myTable")
+
 ```
 
