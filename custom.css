@@ -86,6 +86,19 @@ $card-bg                    : #FFFFFF;
     height: 100% !important;
 }
 
-.form-group.shiny-input-container{
+/*.form-group.shiny-input-container{
     height: 100px !important;
+}
+
+.myCLASS1:hover {
+  color: red;
+} */
+
+
+
+
+#test222 {
+  background-color: white;
+  width: 1000px;
+  height: 1000px;
 }

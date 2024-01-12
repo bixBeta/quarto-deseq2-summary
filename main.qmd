@@ -43,6 +43,10 @@ library(bsicons)
 library(DT)
 library(reactable)
 library(reshape2)
+library(reactablefmtr)
+library(htmltools)
+library(htmlwidgets)
+
 
 fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
 actionButton(inputId="run","Submit")
@@ -58,9 +62,34 @@ br()
 uiOutput(outputId = "mat.switch")
 uiOutput("fractionT")
 
-# textOutput(outputId = "n")
-# textOutput(outputId = "d")
+targetFile <- read.delim("targetFile.txt", header = T, sep = "\t")
+targetFile$norm <- paste0("norm.", targetFile$label)
+targetFile$group <- as.factor(targetFile$group)
 
+fmain = function(group_){
+  
+  x = list(targetFile %>% filter(group == group_) %>% pull(norm))
+  y = group_
+  
+  names(x) <- paste0("Group: ", y)
+  
+  return(x)
+}
+
+
+l5 <- list() 
+  
+for (i in 1:length(levels(targetFile$group))) {
+
+  l5[[i]] <- fmain(group_ = levels(targetFile$group)[i])
+    
+}
+
+l6 <- lapply(l5, function(x){
+  
+ x = noquote(paste0("colGroup(name = '", names(x), "', columns =", noquote(paste0(x)) ,")"))
+  
+})
 
 ```
 
@@ -72,11 +101,6 @@ uiOutput("fractionT")
 
 ```{r}
 #| padding: 0
-
-# uiOutput(outputId = "contrastID")
-# uiOutput(outputId = "filtCounts")
-# uiOutput(outputId = "mat.switch")
-# 
 
 uiOutput(outputId = "valbox1")
 ```
@@ -103,6 +127,8 @@ uiOutput(outputId = "valbox3")
 ```{r}
 #| expandable: TRUE
 DT::dataTableOutput(outputId = "uploaded")
+
+
 
 ```
 
@@ -138,38 +164,6 @@ observeEvent(input$run , {
   
 )
 
-
-# con.names <- reactive({
-#   
-#   req(input$pID)
-#   
-#   if (input$pID != "All_Comparisons") {
-#     
-#     if (input$switch2 == FALSE) {
-#     a = input$pID
-#   
-#     a1 = str_split(a, pattern = "_vs_")[[1]][1]
-#     a2 = str_split(a, pattern = "_vs_")[[1]][2]
-#     # 
-#     
-#     list(a1,a2)
-#     
-#     } else if (input$switch2 == TRUE) {
-#       
-#     a = input$pID
-#   
-#     a1 = str_split(a, pattern = "_vs_")[[1]][1]
-#     a2 = str_split(a, pattern = "_vs_")[[1]][2]
-#     
-#     list(a2,a1)
-#       
-#     }
-#     
-# 
-#     
-#   } 
-# 
-# })
 
 con.num <- reactive({
 
@@ -210,11 +204,6 @@ con.denom <- reactive({
 })
 
 
-
-
-
-
-
 # Data Subset Reactive Objects:
 
 # 1. Normalized Counts:
@@ -232,14 +221,9 @@ quants <- reactive({
 norm.counts.filtered = reactive({
   
   req(input$min.counts)
-  #req(input$pID)
   x = norm.counts()
   x %>% filter(baseMean >= quants()[unname(paste0(input$min.counts, "%"))])
-  # %>% 
-  #   select(gene_id, gene, matches("norm")) %>% 
-  #   tibble::column_to_rownames("gene_id")
-  
-  #x %>% filter(rowSums(x) >= quants()[paste0(input$min.counts, "%")])
+
   
   
   
@@ -264,9 +248,9 @@ normCounts.tab <- reactive({
   # tr
   
   
-  m1 = norm.counts.filtered() %>% rownames_to_column("GENE") 
+  m1 = norm.counts.filtered()  %>% rownames_to_column("GENE") 
   
-  m2 = melt(m1)
+  m2 = m1 %>% select(-baseMean, -gene) %>% melt()
   #colnames(m2) <- c("GENE", "sample", "counts")
   
   m3 = m2 %>% group_by(GENE) %>% summarise(Trend = list(value))
@@ -310,30 +294,6 @@ observeEvent(input$pID,
 
 )
 
-# db2 <- reactive({
-#   req(input$file$datapath)
-#   req(input$pID)
-#   req(db())
-#   
-#   
-#   if (input$pID == "All_Comparisons") {
-#     db() %>% select(!matches("norm")) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
-#     
-#   } else if (input$pID !="All_Comparisons"){
-#     
-#     
-#     if (input$switch2 == FALSE) {
-#           db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
-# 
-#     } else if (input$switch2 == TRUE) {
-#           db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% 
-#         filter(gene_id %in% rownames(norm.counts.filtered())) %>% mutate(across(matches("log2FoldChange"), ~ . * -1))
-#     }
-#     
-#   }
-#   
-# })
-
 
 db2 <- reactive({
   req(input$file$datapath)
@@ -373,30 +333,12 @@ db3 <- reactive({
   
 })
 
+output$uploaded <- DT::renderDataTable(DT::datatable(db3() %>% mutate_if(is.numeric, round, 3),
+                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900,
+                                                          autoWidth = F), filter = "none",
+                                                     rownames = T, caption = "DESeq2 Results"))
 
 
-
-
-
-
-# output$txt <- ifelse(test = input$switch2 == FALSE, yes = renderText(input$switch2), no = renderText("NOOOOOO"))
-
-# observeEvent(input$switch2, {
-#   
-#   if (input$switch2 == TRUE && input$pID != "All_Comparisons") {
-#     
-#     output$n <- renderText(paste0("Numerator Group switched to  :  ",con.denom()))
-#     output$d <- renderText(paste0("Denominator/Baseline Group switched to  :  ",con.num()))
-# 
-#     
-#   } else if (input$switch2 == FALSE && input$pID != "All_Comparisons"){
-#    
-#     output$n <- renderText(paste0("Numerator Group -->  ",con.num()))
-#     output$d <- renderText(paste0("Denominator/Baseline Group -->  ",con.denom()))
-# 
-#   }
-#   
-# })
 
 
 observeEvent(input$switch2,{
@@ -417,7 +359,7 @@ observeEvent(input$switch2,{
                                                               style = function(value){list(background = "#c9ada7", fontWeight = "bold")},
                                                               cell = function(value){span(class = "myCLASS1", value)})),
                                           columnGroups = list(colGroup(name = "log2FC", columns = c("a", "b"))),
-                                          sortable = F, striped = F, outlined = T , resizable = T, bordered = F)
+                                          sortable = F, striped = F, outlined = T , resizable = T, bordered = F, highlight = T)
   })
     
   } else if(input$switch2 == FALSE && input$pID != "All_Comparisons" &&  !is.null(input$switch2)){
@@ -436,7 +378,7 @@ observeEvent(input$switch2,{
                                                      b = colDef(maxWidth = 150, name = "",
                                                     style = function(value){list(background = "#C7C7C7", fontWeight = "bold")})),
               columnGroups = list(colGroup(name = "log2FC", columns = c("a", "b"))),
-                                                     sortable = F, resizable = T, bordered = F, striped = F)
+                                                     sortable = T, resizable = T, bordered = F, striped = T, highlight = T)
   })
   }
 })
@@ -464,13 +406,103 @@ observeEvent(input$switch2,{
 #                                                       caption = "DESeq2 Normalized Counts", 
 #                                                       escape = F) %>% spk_add_deps() ) 
 
-output$nCountsDT <- renderReactable(reactable(normCounts.tab() %>% select(Trend, everything()),
+# output$nCountsDT <- renderReactable(reactable(normCounts.tab() %>% select(Trend, everything()),
+#           columns = list(
+#             Trend = colDef(cell =react_sparkline(normCounts.tab(), 
+#                                                  line_curve = "linear",
+#                                                  decimals = 1,
+#                                                  show_area = T,
+                                                
+#                                                  highlight_points = highlight_points(first="orange",last="blue")), minWidth = 100)
+#           ), 
+#           resizable = T, striped = F, searchable = T, filterable = F, 
+#           defaultPageSize = 50, showPageInfo = T, bordered = T, highlight = T,compact = T,
+#           columnGroups = lapply(l6, function(x){eval(parse(text = x))})
+# ))
+
+
+
+
+html_code <- '
+  setInterval(function(){
+    $(".inlinesparkline").sparkline();
+    $(".inlinesparkline").toggleClass("inlinesparkline noinlinesparkline");
+  }, 50);
+'
+
+
+tbl <- reactive({ 
+  
+  req(normCounts.tab())
+  
+  tb <-
+  reactable(normCounts.tab() %>% select(Trend, everything()),
           columns = list(
-            Trend = colDef(cell = function(value, index) {
-              sparkline(normCounts.tab()$Trend[[index]])})
-          ), resizable = T, striped = T, searchable = T, filterable = F, 
-          defaultPageSize = 50, paginationType = "simple", showPageInfo = T, bordered = T
-))
+            Trend = colDef(
+              html = TRUE,
+              cell = JS("function(cell) {
+                          return '<span id=\"test222\" class=\"inlinesparkline\">' + cell.value + '</span>'
+               }"),
+               style = list(color = "white"), align = "center"
+            
+                )
+          ), 
+          resizable = T, striped = F, searchable = T, filterable = F, 
+          defaultPageSize = 50, showPageInfo = T, bordered = T, highlight = T,compact = T,
+          columnGroups = lapply(l6, function(x){eval(parse(text = x))}), 
+                    defaultColDef = colDef(
+            
+            cell = JS(html_code)
+          ), width = 1920
+) 
+  # adding a custom JavaScript function to render the sparklines from the html tags
+  # once the sparkline is created, the class is changed from inlinesparkline to noinlinesparkline
+  # changing the class is necessary because otherwise another rendering would remove the created sparkoines
+  # this function is run each 20ms so that it is applied even to sparklines on other pages of the reactable
+
+#   normCounts.tab() %>%
+#   rowwise() %>%
+#   mutate(
+#     # preparing the sparklines html manually
+#     # sparklines html looks like this <span class="inlinesparkline">1,2,3,4,5</span>
+#     Trend = Trend %>%
+#       unlist() %>%
+#       paste(collapse = ",") %>%
+#       paste0('<span class="inlinesparkline">', ., '</span>')
+#   ) %>%
+#   reactable(
+#     columns = list(
+#       Trend = colDef(html = T) # rendering the content as html
+#     ), 
+#     columnGroups = lapply(l6, function(x){eval(parse(text = x))}), borderless = F, bordered = T, striped = F, resizable = T,compact = T,
+#     highlight = T,height = 1240, outlined = T,
+#     defaultColDef = colDef(minWidth = 10)
+  # ) %>%
+  # # adding a custom JavaScript function to render the sparklines from the html tags
+  # # once the sparkline is created, the class is changed from inlinesparkline to noinlinesparkline
+  # # changing the class is necessary because otherwise another rendering would remove the created sparkoines
+  # # this function is run each 20ms so that it is applied even to sparklines on other pages of the reactable
+  # prependContent(onStaticRenderComplete(
+  #   HTML("setInterval(function(){ 
+  #           $('.inlinesparkline').sparkline();
+  #           $('.inlinesparkline').toggleClass('inlinesparkline noinlinesparkline');
+  #         }, 50);
+  #        ")
+  # ))
+
+
+tb$dependencies <- getDependency("sparklines") 
+tb
+
+})
+
+
+
+output$nCountsDT <- renderReactable(tbl())
+
+
+
+
 
 cap <- reactive({
     req(input$pID)
@@ -529,10 +561,7 @@ output$v1 <- renderText(nrow(db()))
 # output$v3 <- renderText(nrow(db()))
 
 
-output$uploaded <- DT::renderDataTable(DT::datatable(db3() %>% mutate_if(is.numeric, round, 3),
-                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900,
-                                                          autoWidth = F), filter = "none",
-                                                     rownames = T, caption = "DESeq2 Results"))
+
 
 
 output$norm.counts.raw <- DT::renderDataTable(DT::datatable(norm.counts() %>% mutate_if(is.numeric, round, 3), 
@@ -585,18 +614,6 @@ output$dist.plot <-
           )
 
 output$DENS <- renderUI(withSpinner(jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)))))
-
-# # ss <- reactiveVal(FALSE)
-# 
-# observeEvent(input$switch2,
-#              {
-#   if (input$switch2 == FALSE) {
-#     ss <- reactiveVal(FALSE)
-#   } else if (input$switch2 == TRUE){
-# 
-#     ss <- reactiveVal(TRUE)
-#   }
-# })
 
 
 
