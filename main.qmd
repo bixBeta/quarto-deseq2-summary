@@ -423,12 +423,12 @@ observeEvent(input$switch2,{
 
 
 
-html_code <- '
-  setInterval(function(){
-    $(".inlinesparkline").sparkline();
-    $(".inlinesparkline").toggleClass("inlinesparkline noinlinesparkline");
-  }, 50);
-'
+# html_code <- '
+#   setInterval(function(){
+#     $(".inlinesparkline").sparkline();
+#     $(".inlinesparkline").toggleClass("inlinesparkline noinlinesparkline");
+#   }, 50);
+# '
 
 
 tbl <- reactive({ 
@@ -440,20 +440,27 @@ tbl <- reactive({
           columns = list(
             Trend = colDef(
               html = TRUE,
-              cell = JS("function(cell) {
-                          return '<span id=\"test222\" class=\"inlinesparkline\">' + cell.value + '</span>'
-               }"),
-               style = list(color = "white"), align = "center"
+              cell = function(value, index){
+                sparkline(normCounts.tab()$Trend[[index]], width = 70, height = 20)
+              }, align = "center", maxWidth = 100
             
                 )
-          ), 
-          resizable = T, striped = F, searchable = T, filterable = F, 
-          defaultPageSize = 50, showPageInfo = T, bordered = T, highlight = T,compact = T,
-          columnGroups = lapply(l6, function(x){eval(parse(text = x))}), 
-                    defaultColDef = colDef(
             
-            cell = JS(html_code)
-          ), width = 1920
+          ), 
+          resizable = T, striped = T, searchable = T, filterable = F, 
+          defaultPageSize = 50, showPageInfo = T, bordered = T, highlight = T,compact = T,
+          columnGroups = lapply(l6, function(x){eval(parse(text = x))}),
+          width = 1920, 
+          theme = 
+            reactableTheme(
+                    borderColor = "#c7c7c7",
+                    stripedColor = "#f6f8fa",
+                    highlightColor = "#eddcd8",
+                    cellPadding = "8px 12px",
+                    style = list(
+                      fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
+                    ),
+                    searchInputStyle = list(width = "100%"))
 ) 
   # adding a custom JavaScript function to render the sparklines from the html tags
   # once the sparkline is created, the class is changed from inlinesparkline to noinlinesparkline
@@ -491,14 +498,16 @@ tbl <- reactive({
   # ))
 
 
-tb$dependencies <- getDependency("sparklines") 
+# tb$dependencies <- getDependency("sparklines") 
 tb
 
 })
 
 
 
-output$nCountsDT <- renderReactable(tbl())
+output$nCountsDT <- renderReactable({ 
+  tbl()
+  })
 
 
 
