@@ -1,0 +1,9 @@
+label	files	group
+1B	RC2_5081D.ReadsPerGene.out.tab.rawCounts	G1
+1C	RC3_5081D.ReadsPerGene.out.tab.rawCounts	G1
+2B	RC5_5081D.ReadsPerGene.out.tab.rawCounts	G2
+2C	RC6_5081D.ReadsPerGene.out.tab.rawCounts	G2
+3B	RC8_5081D.ReadsPerGene.out.tab.rawCounts	G3
+3C	RC9_5081D.ReadsPerGene.out.tab.rawCounts	G3
+4B	RC11_5081D.ReadsPerGene.out.tab.rawCounts	G4
+4C	RC12_5081D.ReadsPerGene.out.tab.rawCounts	G4
