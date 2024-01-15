@@ -15,13 +15,12 @@ server: shiny
 
 
 ### {.sidebar width="300"} 
-```{r}
+```{r setup}
 #| context: setup
 
 library(quarto)
 library(shiny)
 library(dplyr)
-# library(d3heatmap)
 library(tibble)
 library(tidyverse)
 library(shinycssloaders)
@@ -46,6 +45,7 @@ library(reshape2)
 library(reactablefmtr)
 library(htmltools)
 library(htmlwidgets)
+library(tippy)
 
 
 fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
@@ -66,6 +66,8 @@ targetFile <- read.delim("targetFile.txt", header = T, sep = "\t")
 targetFile$norm <- paste0("norm.", targetFile$label)
 targetFile$group <- as.factor(targetFile$group)
 
+
+# Assosiate Group Levels with Sample_ID ====
 fmain = function(group_){
   
   x = list(targetFile %>% filter(group == group_) %>% pull(norm))
@@ -99,18 +101,18 @@ l6 <- lapply(l5, function(x){
 
 ## Row {height="15%"}
 
-```{r}
+```{r ui-valbox1}
 #| padding: 0
 
 uiOutput(outputId = "valbox1")
 ```
 
-```{r}
+```{r ui-valbox2}
 #| padding: 0
 uiOutput(outputId = "valbox2")
 ```
 
-```{r}
+```{r ui-valbox3}
 #| padding: 0
 uiOutput(outputId = "valbox3")
 
@@ -124,16 +126,16 @@ uiOutput(outputId = "valbox3")
 ### DESeq2 Results 
 
 
-```{r}
+```{r ui-uploaded}
 #| expandable: TRUE
-DT::dataTableOutput(outputId = "uploaded")
-
-
+#DT::dataTableOutput(outputId = "uploaded")
+#output$uploaded <- renderUI(withSpinner(reactableOutput(outputId = "uploadedDb3"), type = 1))
+uiOutput(outputId = "uploaded")
 
 ```
 
 
-```{r}
+```{r read-in-Uploads}
 #| context: server
 #| padding: 0
 db <- eventReactive(input$run, {
@@ -145,6 +147,7 @@ db <- eventReactive(input$run, {
 })
 
 
+# Reactive DropDown Menu in Sidebar -- Allows user to choose available DESeq2 Contrasts + All_Comparisons ====
 observeEvent(input$run , {
   
   output$contrastID <- renderUI({
@@ -164,6 +167,8 @@ observeEvent(input$run , {
   
 )
 
+
+# Reactive function to parse the nume and denom for a given contrast ====
 
 con.num <- reactive({
 
@@ -206,13 +211,13 @@ con.denom <- reactive({
 
 # Data Subset Reactive Objects:
 
-# 1. Normalized Counts:
+# 1. Normalized Counts: ====
 
 norm.counts = reactive({
   req(db())
   db() %>% select(gene_id, gene, baseMean, matches("norm")) %>% tibble::column_to_rownames("gene_id") })
 
-# 2. Filtered Norm Counts:
+# 2. Filtered Norm Counts Based on basemean quantiles: ====
 
 quants <- reactive({
   quantile(db()$baseMean)
@@ -229,30 +234,16 @@ norm.counts.filtered = reactive({
   
 })
 
-# 3. Add SparkLines:
+# 3. SparkLines Setup: ====
 
 normCounts.tab <- reactive({
   
   req(norm.counts.filtered())
-  # Trend = apply(norm.counts.filtered() %>% select(-gene, -baseMean), 1, function(x){
-  # 
-  # spk_chr(
-  #   unname(x), type ="line",
-  #   chartRangeMin=0, chartRangeMax=max(x), width = 60, height = 40, elementId = "sTest",highlightColor = "red",
-  #   tooltipPrefix="norm-counts: "
-  #   )
-  # 
-  # })
-  # 
-  # tr = cbind(norm.counts.filtered(), Trend)
-  # tr
-  
-  
+
   m1 = norm.counts.filtered()  %>% rownames_to_column("GENE") 
   
   m2 = m1 %>% select(-baseMean, -gene) %>% melt()
-  #colnames(m2) <- c("GENE", "sample", "counts")
-  
+
   m3 = m2 %>% group_by(GENE) %>% summarise(Trend = list(value))
   
   m4 = left_join(m1, m3, by = c("GENE")) %>% column_to_rownames("GENE")
@@ -261,10 +252,7 @@ normCounts.tab <- reactive({
   
 })
 
-# 4. db2 -- comparison selector:
-
-
-
+# 4. db2 -- comparison selector:====
 
 observeEvent(input$pID,
 
@@ -294,7 +282,7 @@ observeEvent(input$pID,
 
 )
 
-
+# 4.1 db2 ====
 db2 <- reactive({
   req(input$file$datapath)
   req(input$pID)
@@ -302,17 +290,28 @@ db2 <- reactive({
   
   
   if (input$pID == "All_Comparisons") {
-    db() %>% select(!matches("norm")) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+    db() %>% rowwise() %>% mutate(n_comparisons_sig = sum(c_across(matches("padj")) <= 0.05, na.rm = T)) %>%
+      select(!matches("norm")) %>% filter(gene_id %in% rownames(norm.counts.filtered())) %>% 
+      mutate(Significance = ifelse(n_comparisons_sig == 0, "ns", "Yes")) %>% select(-n_comparisons_sig) %>% 
+      select(Significance, everything())
     
   } else if (input$pID !="All_Comparisons"){
     
-    db() %>% select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) %>% filter(gene_id %in% rownames(norm.counts.filtered()))
+    a = db() %>% 
+          select(gene_id, gene, locus, strand, gene_biotype, matches(input$pID)) 
+
+    b = a %>% rowwise() %>% mutate(n_comparisons_sig = sum(c_across(matches("padj")) <= 0.05, na.rm = T)) %>%
+          filter(gene_id %in% rownames(norm.counts.filtered())) %>%
+          mutate(Significance = ifelse(n_comparisons_sig == 0, "ns", "Yes")) %>% select(-n_comparisons_sig) %>% 
+          select(Significance, everything())
+    
+    b
 
   }
   
 })
 
-
+# 4.1.2 db3 ====
 db3 <- reactive({
   
   req(db2())
@@ -333,14 +332,61 @@ db3 <- reactive({
   
 })
 
-output$uploaded <- DT::renderDataTable(DT::datatable(db3() %>% mutate_if(is.numeric, round, 3),
-                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900,
-                                                          autoWidth = F), filter = "none",
-                                                     rownames = T, caption = "DESeq2 Results"))
+with_tooltip <- function(value, tooltip, ...) {
+  div(style = "text-decoration: underline; cursor: help",
+      tippy(value, tooltip, ...))
+}
+
+output$uploadedDb3 <- renderReactable(reactable(db3() %>% mutate_if(is.numeric, round, 3), 
+                                                resizable = T, striped = T, searchable = T, filterable = F, 
+          defaultPageSize = 50, showPageInfo = T, bordered = T, highlight = T,compact = T,
+          columns = list(
+            gene = colDef( filterable = T),
+            
+            Significance = colDef(
+              cell = function(value) {
+                    if (value == "Yes") {
+                      classes <- "tag num-high"
+                    } else if (value == "ns") {
+                      classes <- "tag num-med"
+                    } else {
+                      classes <- "tag num-low"
+                    }
+                    value <- format(value, nsmall = 1)
+                    span(class = classes, value)
+              }, header = with_tooltip("Significance", "When All_Comparisons is selected, 
+                                       Significance Column displays Yes 
+                                       where a given row/gene is significant in at least 1 comparison")
+            )
+            
+          ),
+          width = 1920, defaultColDef = colDef(minWidth = 200, maxWidth = 500, align = "center"), 
+          theme = 
+            reactableTheme(
+                    borderColor    = "#c7c7c7",
+                    stripedColor   = "#f6f8fa",
+                    highlightColor = "#eddcd8",
+                    cellPadding = "8px 12px",
+                    style = list(
+                      fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
+                    ),
+                    searchInputStyle = list(width = "100%"))
+          
+          
+          ))
+
+output$uploaded <- renderUI(withSpinner(reactableOutput(outputId = "uploadedDb3"), type = 1))
 
 
 
+# output$uploaded <- DT::renderDataTable(DT::datatable(db3() %>% mutate_if(is.numeric, round, 3),
+#                                                      list(paging=T,pageLength = 100, scrollX=T,scrollY=900,
+#                                                           autoWidth = F), filter = "none",
+#                                                      rownames = T, caption = "DESeq2 Results"))
+# 
 
+
+# Reactive Switch Behavior Num/Denom ====
 observeEvent(input$switch2,{
   if (input$switch2 == TRUE && input$pID != "All_Comparisons" && !is.null(input$switch2)) {
     
@@ -430,7 +476,7 @@ observeEvent(input$switch2,{
 #   }, 50);
 # '
 
-
+# Reactive Normalized Counts Table with Sparklines ====
 tbl <- reactive({ 
   
   req(normCounts.tab())
@@ -512,7 +558,7 @@ output$nCountsDT <- renderReactable({
 
 
 
-
+# Reactive Caption for ValBox 3 ====
 cap <- reactive({
     req(input$pID)
     req(db2())
@@ -531,7 +577,7 @@ cap <- reactive({
 
 
 
-
+# Value Boxes ====
 output$valbox1 <- renderUI({
   validate(need(input$file, message = "  
     Please Upload DESeq2 results distributed by TREx and Click Submit!"))
@@ -573,16 +619,17 @@ output$v1 <- renderText(nrow(db()))
 
 
 
-output$norm.counts.raw <- DT::renderDataTable(DT::datatable(norm.counts() %>% mutate_if(is.numeric, round, 3), 
-                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
-                                                          autoWidth = F), filter = "none", 
-                                                     rownames = T, caption = "DESeq2 Normalized Counts")) 
+# output$norm.counts.raw <- DT::renderDataTable(DT::datatable(norm.counts() %>% mutate_if(is.numeric, round, 3), 
+#                                                      list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
+#                                                           autoWidth = F), filter = "none", 
+#                                                      rownames = T, caption = "DESeq2 Normalized Counts")) 
+# 
+# output$norm.counts.filtered <- DT::renderDataTable(DT::datatable(norm.counts.filtered() %>% mutate_if(is.numeric, round, 3), 
+#                                                      list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
+#                                                           autoWidth = F), filter = "none", 
+#                                                      rownames = T, caption = "DESeq2 Normalized Filtered Counts")) 
 
-output$norm.counts.filtered <- DT::renderDataTable(DT::datatable(norm.counts.filtered() %>% mutate_if(is.numeric, round, 3), 
-                                                     list(paging=T,pageLength = 100, scrollX=T,scrollY=900, 
-                                                          autoWidth = F), filter = "none", 
-                                                     rownames = T, caption = "DESeq2 Normalized Filtered Counts")) 
-
+# Slider Filter for baseMean filtering on NormCounts + ggdensity vertical ====
 observeEvent(input$run, {
 
   if (!is.null(input$file$datapath)) {
@@ -603,7 +650,7 @@ observeEvent(input$run, {
   }
 )
 
-
+# ui-normalized-counts-w/sparkline ====
 output$spinnerSpark <- renderUI(withSpinner(reactableOutput(outputId = "nCountsDT"), type = 1))
 
 
@@ -613,6 +660,7 @@ norm.stack <- reactive({
   return(x)
 })
 
+# DensityPlot ====
 output$dist.plot <- 
     renderPlotly(
       ggplotly(ggdensity(norm.stack(), x = "Counts",
@@ -625,7 +673,7 @@ output$dist.plot <-
 output$DENS <- renderUI(withSpinner(jqui_resizable((plotlyOutput(outputId = "dist.plot", width = 1000, height = 800)))))
 
 
-
+# MA-Plot ====
 maplot <- reactive({
   validate(need(input$pID !="All_Comparisons", message = "Please Select a DESeq2 Comparison", label = "---"))
   req(input$pID)
@@ -710,12 +758,13 @@ output$maDownload <- downloadHandler(
     
 )
 
+# ui-maDownload ===
 observeEvent(!is.null(db()), {
   output$ma.button <- renderUI(downloadButton("maDownload", "Download MA-Plot", style="width:100%;"))
 })
 
 
-
+# ui-MAPlot ====
 output$MA <- renderUI(withSpinner(jqui_resizable(jqui_draggable(plotOutput(outputId = "ma.plot", width = 1080, height = 1080)))))
 
 
@@ -727,14 +776,14 @@ output$MA <- renderUI(withSpinner(jqui_resizable(jqui_draggable(plotOutput(outpu
 ### Normalized Counts
 
 
-```{r}
+```{r ui-NormCountsFinal}
 #| expandable: true
 uiOutput(outputId = "spinnerSpark")
 
 ```
 
 #### {.toolbar}
-```{r}
+```{r ui-NormCounts_Download}
 uiOutput(outputId = "csv")
 ```
 
@@ -743,7 +792,7 @@ uiOutput(outputId = "csv")
 ### Density Distributions 
 
 
-```{r}
+```{r ui-DensityPlot}
 #| expandable: true
 
 uiOutput(outputId = "DENS")
@@ -759,7 +808,7 @@ uiOutput(outputId = "MA")
 ```
 
 #### {.toolbar}
-```{r}
+```{r ui-MAPlot-Button}
 uiOutput(outputId = "ma.button")
 
 ```

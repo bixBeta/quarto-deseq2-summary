@@ -94,6 +94,41 @@ $card-bg                    : #FFFFFF;
   color: red;
 } */
 
+.tag {
+  
+  color: black;
+  padding: 5px 5px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+}
+.num-high {
+
+  background-color: #cee2cb;
+  border: none;
+  color: #2b4326;
+  padding: 7px 15px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  margin: 4px 2px;
+  cursor: cursor;
+  border-radius: 60px;
+}
+
+.num-med {
+ 
+  background-color: #f6edbe;
+  border: none;
+  color: #504515;
+  padding: 7px 15px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  margin: 4px 2px;
+  cursor: cursor;
+  border-radius: 60px;
+}
 
 
 
