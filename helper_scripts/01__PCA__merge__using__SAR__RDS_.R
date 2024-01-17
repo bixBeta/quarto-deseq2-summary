@@ -7,10 +7,8 @@ library(dplyr)
 # Load in RDS object ====
 args <-  commandArgs(trailingOnly = T)
 
-
-pin <- args[1]
-sar_data <- args[2]
-top_var <- args[3]
+sar_data <- args[1]
+top_var <- args[2]
 
 
 load(sar_data)
@@ -51,7 +49,9 @@ intgroup.df <- as.data.frame(colData(vsd)[, "group", drop=FALSE])
 df.pca <- data.frame(pca$x, name=rownames(pca$x))
 df.pca.annotated <- left_join(target, df.pca, by= c("label"="name"))
 
-saveRDS(object = df.pca.annotated, file = paste0(pin, "_PCA_Matrix_nTop_", top_var, ".RDS"))
+
+pca.explorer = list(PCA.df = df.pca.annotated, Variance.df = pVar.df, prcomp.out = pca)
+saveRDS(object = pca.explorer, file = paste0(pin, "_PCA_Matrix_nTop_", top_var, ".RDS"))
 
 
 
