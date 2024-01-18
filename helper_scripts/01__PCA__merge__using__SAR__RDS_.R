@@ -22,7 +22,7 @@ vsd <- varianceStabilizingTransformation(out.DESeq2$dds, blind=T)
 rv <- rowVars(assay(vsd))
 
 # select the ntop genes by variance
-select <- order(rv, decreasing=TRUE)[seq_len(min(top_var, length(rv)))]
+select <- order(rv, decreasing=TRUE)[seq_len(min(as.numeric(top_var), length(rv)))]
 
 #``````````````````````````````````````````````````````````````````````````````
 # Get PCA ====
@@ -49,9 +49,9 @@ intgroup.df <- as.data.frame(colData(vsd)[, "group", drop=FALSE])
 df.pca <- data.frame(pca$x, name=rownames(pca$x))
 df.pca.annotated <- left_join(target, df.pca, by= c("label"="name"))
 
-
+message(paste("top_var = ", top_var))
 pca.explorer = list(PCA.df = df.pca.annotated, Variance.df = pVar.df, prcomp.out = pca)
-saveRDS(object = pca.explorer, file = paste0(pin, "_PCA_Matrix_nTop_", top_var, ".RDS"))
+saveRDS(object = pca.explorer, file = paste0(pin, "_PCA_Matrix_nTop__", top_var, ".RDS"))
 
 
 

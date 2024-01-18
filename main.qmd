@@ -46,7 +46,7 @@ library(reactablefmtr)
 library(htmltools)
 library(htmlwidgets)
 library(tippy)
-
+library(colourpicker)
 
 fileInput("file", label = "Import DESeq2-Final Results", accept = ".txt", width = "100%")
 actionButton(inputId="run","Submit")
@@ -67,7 +67,7 @@ targetFile$norm <- paste0("norm.", targetFile$label)
 targetFile$group <- as.factor(targetFile$group)
 
 
-pca_rds <- readRDS("/Users/fa286/Desktop/5081D/STAR.COUNTS/rawCounts/5081D/5081D_PCA_Matrix_nTop_500.RDS")
+pca_rds <- readRDS("/Users/fa286/Desktop/5081D/STAR.COUNTS/rawCounts/5081D/5081D_PCA_Matrix_nTop__500.RDS")
 
 # Assosiate Group Levels with Sample_ID ====
 fmain = function(group_){
@@ -140,160 +140,6 @@ uiOutput(outputId = "uploaded")
 ```{r read-in-Uploads}
 #| context: server
 #| padding: 0
-
-
-pca.df <- pca_rds$PCA.df
-
-pca_rotation <- pca_rds$prcomp.out$rotation
-
-loading_scores <- pca_rotation [,1:5]
-ab.loading_scores <- abs(loading_scores)
-
-
-
-output$loadings <- renderReactable(reactable(data.frame(ab.loading_scores) %>% mutate_if(is.numeric, round, 3), 
-                          resizable = T, striped = T, searchable = T, filterable = F, 
-                          defaultPageSize = 50, showPageInfo = F, bordered = T, highlight = T,compact = F, 
-                          defaultSorted = c("PC1"), showPageSizeOptions = T,
-                          showSortable = T,paginationType = "simple",
-                          columns = list(PC1 = colDef(defaultSortOrder = "desc", sortable = T)
-                          ),
-                          width = 1200, defaultColDef = colDef(minWidth = 150, maxWidth = 500, align = "left"), 
-                          theme = 
-                            reactableTheme(
-                              borderColor    = "#c7c7c7",
-                              stripedColor   = "#f6f8fa",
-                              highlightColor = "#eddcd8",
-                              cellPadding = "8px 12px",
-                              style = list(
-                                fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
-                              ),
-                              searchInputStyle = list(width = "100%"))
-                          
-                          
-))
-
-
-output$pcaLoadings <- renderUI(reactableOutput(outputId = "loadings"))
-
- # render-ui -- cluster  ---------------------------------------------------------------
-  
-  output$metaID <- renderUI({
-    
-    
-    tagList(
-      selectInput(inputId = "metaclusterID", label = "Select Metadata",
-                  choices = colnames(pca.df %>% select(!matches("PC"))), selected = "group")
-      
-    )
-    
-  })
-  
-  
-
-  
-  # render-ui -- pcx --------------------------------------------------------
-  
-  output$pcx <- renderUI({
-    
-    u_sel_meta = req(input$metaclusterID)
-    
-    tagList(
-      selectInput(inputId = "pcx_ID", label = "Select PC of x-axis",
-                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC1"))
-    
-    
-  })
-  
-  # render-ui -- pcy --------------------------------------------------------
-  
-  output$pcy <- renderUI({
-    
-    u_sel_meta = req(input$metaclusterID)
-    
-    tagList(
-      selectInput(inputId = "pcy_ID", label = "Select PC of y-axis",
-                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC2"))
-    
-    
-  })
-  
-  
-  # render-ui -- pcz --------------------------------------------------------
-  
-  output$pcz <- renderUI({
-    
-    u_sel_meta = req(input$metaclusterID)
-    
-    tagList(
-      selectInput(inputId = "pcz_ID", label = "Select PC of z-axis",
-                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC3"))
-    
-    
-  })
-  
-
-
-
-
-
-
-
-  
-output$pca3d <- 
-    
-    renderPlotly({
-      
-      u_sel_pcx  =  req(input$pcx_ID)
-      u_sel_pcy = req(input$pcy_ID)
-      u_sel_pcz = req(input$pcz_ID)
-      
-      # --------------------------------------------------------------------------------------------------------
-
-      m <- list(
-        l = 1,
-        r = 1,
-        b = 50,
-        t = 50,
-        pad = 1
-      )
-      plot_ly(data = pca.df,  x = ~  get(u_sel_pcx), y= ~ get(u_sel_pcy), z = ~  get(u_sel_pcz), 
-              width = 1800, height = 1200,
-              color = ~ get(input$metaclusterID),
-              colors = c('#636EFA','#EF553B','#00CC96'),
-              text = pca.df$label,
-              marker = list(size = 14,
-                            line = list(color = ~  ~ get(input$metaclusterID) , width = 1)),
-              hovertemplate = paste("<b>%{text}<b><br> PCx: %{x}<br> PCy: %{y}<br> PCz: %{z}")) %>%
-        add_markers() %>%
-        layout(autosize = T, margin =m, title = "3D Principal Components Analysis",
-               scene = list(xaxis = list(title = paste0(input$pcx_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcx_ID) %>% pull(percentVar)), " %")),
-                            yaxis = list(title = paste0(input$pcy_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcy_ID) %>% pull(percentVar)), " %")),
-                            zaxis = list(title = paste0(input$pcz_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcz_ID) %>% pull(percentVar)), " %"))
-               ), margin = m
-        ) %>% layout(legend = list(orientation = 'v', xanchor = "left"))
-      
-      
-      
-      
-      
-      
-      
-    })
-
-output$PCA3 <- renderUI(withSpinner((plotlyOutput(outputId = "pca3d", width = 800, height = 800))))
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 db <- eventReactive(input$run, {
@@ -929,6 +775,221 @@ output$MA <- renderUI(withSpinner(jqui_resizable(jqui_draggable(plotOutput(outpu
 
 
 
+# pca_rds ====
+pca.df <- pca_rds$PCA.df
+
+pca_rotation <- pca_rds$prcomp.out$rotation
+
+loading_scores <- data.frame(pca_rotation[,1:5])
+ab.loading_scores <- abs(loading_scores)
+
+# pca_loadings ====
+output$loadings <- renderReactable(reactable(ab.loading_scores %>% mutate_if(is.numeric, round, 3), 
+                          resizable = T, striped = T, searchable = T, filterable = F, 
+                          defaultPageSize = 100, showPageInfo = T, bordered = T, highlight = T,compact = F, 
+                          defaultSorted = c("PC1"),
+                          showSortable = T,
+                          columns = list(PC1 = colDef(defaultSortOrder = "desc", sortable = T, 
+                                                      header = with_tooltip("PC1", "Higher Loading Score indicates more contribution from the feature/gene"),
+                                                      class = function(value, index, name){
+                                                        "class-sorted"
+                                                      }
+                                                      )
+                                         
+                          ),
+                          width = 1200, defaultColDef = colDef(minWidth = 150, maxWidth = 500, align = "left"), 
+                          theme = 
+                            reactableTheme(
+                              borderColor    = "#c7c7c7",
+                              stripedColor   = "#f6f8fa",
+                              highlightColor = "#eddcd8",
+                              cellPadding = "8px 12px",
+                              style = list(
+                                fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
+                              ),
+                              searchInputStyle = list(width = "100%"))
+                          
+                          
+))
+
+
+output$pcaLoadings <- renderUI(reactableOutput(outputId = "loadings"))
+
+ # render-ui -- cluster  ---------------------------------------------------------------
+  
+  output$metaID <- renderUI({
+    
+    
+    tagList(
+      selectInput(inputId = "metaclusterID", label = "Select Metadata",
+                  choices = colnames(pca.df %>% select(!matches("PC"))), selected = "group")
+      
+    )
+    
+  })
+  
+  
+
+  
+  # render-ui -- pcx --------------------------------------------------------
+  
+  output$pcx <- renderUI({
+    
+    u_sel_meta = req(input$metaclusterID)
+    
+    tagList(
+      selectInput(inputId = "pcx_ID", label = "Select PC of x-axis",
+                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC1"))
+    
+    
+  })
+  
+  # render-ui -- pcy --------------------------------------------------------
+  
+  output$pcy <- renderUI({
+    
+    u_sel_meta = req(input$metaclusterID)
+    
+    tagList(
+      selectInput(inputId = "pcy_ID", label = "Select PC of y-axis",
+                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC2"))
+    
+    
+  })
+  
+  
+  # render-ui -- pcz --------------------------------------------------------
+  
+  output$pcz <- renderUI({
+    
+    u_sel_meta = req(input$metaclusterID)
+    
+    tagList(
+      selectInput(inputId = "pcz_ID", label = "Select PC of z-axis",
+                  choices = colnames(pca.df %>% select(matches("PC"))), selected = "PC3"))
+    
+    
+  })
+  
+
+# pca 3d Plotly ====
+output$pca3d <- 
+    
+    renderPlotly({
+      
+      u_sel_pcx  =  req(input$pcx_ID)
+      u_sel_pcy = req(input$pcy_ID)
+      u_sel_pcz = req(input$pcz_ID)
+      
+      # --------------------------------------------------------------------------------------------------------
+
+      m <- list(
+        l = 1,
+        r = 1,
+        b = 50,
+        t = 50,
+        pad = 1
+      )
+      plot_ly(data = pca.df,  x = ~  get(u_sel_pcx), y= ~ get(u_sel_pcy), z = ~  get(u_sel_pcz), 
+              width = 1800, height = 1200,
+              color = ~ get(input$metaclusterID),
+              colors = c('#636EFA','#EF553B','#00CC96'),
+              text = pca.df$label,
+              marker = list(size = 14,
+                            line = list(color = ~   get(input$metaclusterID) , width = 1)),
+              hovertemplate = paste("<b>%{text}<b><br> PCx: %{x}<br> PCy: %{y}<br> PCz: %{z}")) %>%
+        add_markers() %>%
+        layout(autosize = T, margin =m, title = "3D Principal Components Analysis",
+               scene = list(xaxis = list(title = paste0(input$pcx_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcx_ID) %>% pull(percentVar)), " %")),
+                            yaxis = list(title = paste0(input$pcy_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcy_ID) %>% pull(percentVar)), " %")),
+                            zaxis = list(title = paste0(input$pcz_ID, ": ", (pca_rds$Variance.df %>% filter(x == input$pcz_ID) %>% pull(percentVar)), " %"))
+               ), margin = m
+        ) %>% layout(legend = list(orientation = 'v', xanchor = "left"))
+      
+      
+      
+      
+      
+      
+      
+    })
+
+output$PCA3 <- renderUI(withSpinner((plotlyOutput(outputId = "pca3d", width = 800, height = 800))))
+
+
+
+
+
+# Heatmaps ==== 
+
+
+#req(normCounts.tab())
+
+
+
+output$heatmap.options <- renderUI({
+  
+      tagList(
+        tags$style(type='text/css', ".selectize-dropdown-content {height: 1000px; }"),
+        h5("Heatmap Options"),
+        hr(),
+        
+        selectInput(inputId = "select", choices = colnames(normCounts.tab() %>% select(matches("norm"))) , multiple = T, label = "Select Samples to discard"),
+        
+        br(),
+        hr(),
+        h6("Adjust Colors"),
+        colourInput("high", value = "red", label = "High", width = 100),
+        colourInput("low", value = "blue", label = "Low", width = 100),
+        br(),
+        hr(),
+        
+        
+        h6("Adjust Clustering"),
+        br(),
+        selectInput(inputId = "hm-dend", label = "Dendrogram", choices = c("row", "column", "none", "both"), selected = "none", multiple = F),
+        br(),
+        
+        selectInput(inputId = "hm-cluster", label = "Clustering Distance Method", choices = c("pearson", "spearman", "kendall"), selected = "pearson", multiple = F),
+      )
+  
+  })
+
+# my_palette <- reactive({colorRampPalette(c(z.low(),z.mid(),z.high()))(n = 100)})
+my_palette <- colorRampPalette(c("blue", "white","red"))(n = 100)
+
+
+#output$hmap <- renderUI(withSpinner(jqui_resizable(plotlyOutput("heatmap.render", width = plot.w(), height = plot.h()))))
+
+output$hmap <- renderUI(withSpinner(jqui_resizable(plotlyOutput("heatmap.render", width = 1080, height = 1080))))
+
+output$heatmap.render <-
+  renderPlotly({
+          heatmaply(x = normCounts.tab()[5:100,] %>% select(-Trend, -gene, -baseMean),
+                    Rowv = T,
+                    Colv = NULL,
+                    scale = "row",
+                    dendrogram = "row",
+                    colors = my_palette,
+                    column_text_angle = 270,
+                    xlab = "Samples",
+                    ylab = "Core-Enriched Genes",
+                    grid_gap = 0.5,
+                    hide_colorbar = F,
+                    fontsize_row = 12,
+                    fontsize_col = 12,
+                    margins = c(60,100,40,20),
+                    grid_color = "white", plot_method = "plotly", grid_size = 1,
+                    distfun = "pearson", col_side_colors = targetFile$group
+                    
+          ) 
+
+
+
+
+    })
+
+
 
 ```
 
@@ -985,7 +1046,7 @@ uiOutput(outputId = "ma.button")
 ### PCA Plot 
 
 
-```{r}
+```{r ui-PCA-Plotly}
 #| expandable: true
 #| padding: 10
 #| width: 60%
@@ -1011,8 +1072,8 @@ uiOutput("pcz")
 
 
 
-```{r}
-#| title: "Top 100 Genes Contributing to PC1"
+```{r ui-pca-Loadings}
+#| title: "Loading Scores for Top 500 Genes"
 #| expandable: true
 #| padding: 10
 
@@ -1023,9 +1084,30 @@ uiOutput("pcaLoadings")
 ```
 
 
+# Heatmapper
 
 
+## Row 
+
+### PCA Plot 
 
 
+```{r}
+#| expandable: true
+#| padding: 10
+#| width: 60%
+
+uiOutput("hmap")
+
+```
+
+### {.sidebar width="400"}
+```{r}
+#| expandable: true
+#| padding: 10
+
+uiOutput("heatmap.options")
+
+```
 
 

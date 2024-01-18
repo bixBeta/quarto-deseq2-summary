@@ -66,6 +66,21 @@ $card-bg                    : #FFFFFF;
   color: #ffffff;
 }
 
+#downloadCSV:hover{
+  background-color: #4a4e69;
+  color: #ffffff;
+}
+
+#maDownload{
+  background-color: #bdbdbd;
+  color: #000000;
+}
+
+#maDownload:hover{
+  background-color: #4a4e69;
+  color: #ffffff;
+}
+
 .nav-link.active{
   background-color: #4a4e69;
   color: #000000;
@@ -136,4 +151,13 @@ $card-bg                    : #FFFFFF;
   background-color: white;
   width: 1000px;
   height: 1000px;
+}
+
+.selectize-input.items.full.has-options.has-items.item {
+  z-index: 10000 /* your desired z-index value */;
+}
+
+
+.class-sorted {
+  background: rgba(122, 20, 10, 0.1);
 }
